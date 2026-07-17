@@ -12,7 +12,7 @@ Umsetzung des Konzeptdokuments v0.1 (07.07.2026), am **17.07.2026 an das echte F
 | **`object_street_map`** + View **`object_street_owner`** (Adress-Matching) | Supabase | ✅ NEU 17.07.: 134 Zuordnungen, Funktion `street_key()` |
 | Testkunde **„ZZZ TEST – NICHT VERWENDEN"** | Easybill Jonas, Kunden-ID `2646068990`, E-Mail info@ela-immo.de | ✅ angelegt 17.07. |
 | Test-Sheet + Test-Drive-Ordner | Sheet `1zqUokqPY0eOxcmTASvq8VD7KVh0LucwXdfkyLINzgXw` (8 Testfälle), Ordner `1ql4cxT4Mt9UkuoPjk1k3xyOJXSIMQDjH` | ✅ angelegt 17.07. |
-| Test-Klon **„ZZ TEST HW-01 (Jonas, nur Entwurf)"** | n8n „Ai Agentur", ID `hqpKuLxxd6zbQ0oX` — Festschreiben/Versand deaktiviert, erzeugt nur löschbare Entwürfe | ✅ bereit, Ausführung ausstehend |
+| Test-Klon **„ZZ TEST HW-01 (ELA E2E)"** | n8n „Ai Agentur", ID `hqpKuLxxd6zbQ0oX` | ✅ **E2E-Test GRÜN am 17.07.** (Rechnungen 202611129/202611130 im ELA-Konto, Versand an info@ela-immo.de, PDFs in Drive) |
 | Hilfs-Workflows „ZZ TEST Setup v2" / „ZZ TMP Easybill Doku-Check" | n8n „Ai Agentur", IDs `kJdlbcS4MDQoWneU` / `icjWeUrsVUte0TLJ` | nach Abschluss archivieren |
 
 ## Wichtigste Änderungen vom 17.07. (echtes Formular ≠ Konzept-Annahmen)
@@ -36,12 +36,10 @@ Umsetzung des Konzeptdokuments v0.1 (07.07.2026), am **17.07.2026 an das echte F
 8. **Drive-Ablage** in den Eigentümer-Ordner; fehlt der Ordner: `completed_no_drive` + Hinweis-Mail.
 9. **Fehlerpfad**: Retry (3×, 5 s) → Status `error` + Alarm-Mail; Rate-Limit-Pacing 30 s pro Zeile.
 
-## 🚀 Rest-Checkliste bis Go-live (Stand 17.07., in dieser Reihenfolge)
+## 🚀 Rest-Checkliste bis Go-live (Stand 17.07. nachmittags)
 
-1. **[UI, 1 Klick] Credential „Google Sheets Trigger account 3" mit dem n8n-Projekt „Bege" teilen** und im Trigger-Node von HW-01 auswählen — einziges fehlendes Credential; per API nicht möglich. (Zugriff dieses Credentials auf das Bege-Sheet ist verifiziert.)
-2. **[UI] Credential „Easybill Ela immo" reparieren**, falls der Volltest gegen das ELA-Konto laufen soll: Header-Name `Authorization`, Wert `Bearer <API-Key>` (aktuell 401 „Wrong or missing Authorization header").
-3. **Entwurfs-Testlauf** ausführen: Workflow `hqpKuLxxd6zbQ0oX` manuell starten → erwartet: 2 Entwürfe beim Testkunden (59,50 € & 78,75 € netto), 1× `skipped_internal`, 3× `hold` mit Mail, 1 Duplikat still übersprungen, Alt-Zeile ignoriert, PDF im Testordner. Danach Entwürfe + Supabase-Testzeilen löschen.
-4. Optional **Volltest** (Festschreiben + Versand) gegen das ELA-Konto nach Fix von Punkt 2.
+1. ✅ Credentials erledigt (Sheets-Trigger mit Projekt „Bege" geteilt und im Trigger gesetzt; „Easybill Ela immo" repariert).
+2. ✅ Pipeline-Test + voller E2E-Test GRÜN (17.07.): alle 8 Testfälle korrekt, Rechnungen 202611129/202611130 im ELA-Konto erstellt/festgeschrieben/versendet, PDFs in Drive, Versand ohne `to`-Feld nutzt bestätigt die Kundenadresse. Supabase-Testzeilen bereinigt.
 5. **Scharfschalten**: In HW-01 `TEST_MODE: false`, `GO_LIVE_TS` = Aktivierungstag, speichern, Workflow aktivieren. Erste echte Rechnung begleiten. Prüfen, ob der Easybill-Versand ohne `to`-Feld die Kundenadresse nutzt (erwartet, beim ersten Versand verifizieren).
 6. Optional: Error-Workflow „Error Handler – Rechnungs-Workflows" (`FSevOW6IDQwnCMvs`) in den Workflow-Einstellungen hinterlegen.
 7. `reports/gdrive-luecken-2026-07-07.md` abarbeiten (Drive-Ordner-IDs für 17 Eigentümer, Easybill-IDs für „Martin"/„Mikail k").

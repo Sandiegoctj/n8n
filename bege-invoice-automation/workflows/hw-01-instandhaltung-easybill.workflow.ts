@@ -8,54 +8,110 @@ const sheetTrigger = trigger({
     position: [-660, 300],
     parameters: {
       pollTimes: { item: [{ mode: 'everyMinute' }] },
-      documentId: { __rl: true, mode: 'id', value: 'ERSETZEN_SHEET_DOKUMENT_ID' },
-      sheetName: { __rl: true, mode: 'id', value: 'ERSETZEN_BLATT_GID' },
+      documentId: { __rl: true, mode: 'list', value: '16rxquK3LlXBMWBRNQuY-khjbV86wXOwB8OBf-ESN1HU', cachedResultName: 'Checkliste Instandhaltung – Bege Apartments (Antworten)', cachedResultUrl: 'https://docs.google.com/spreadsheets/d/16rxquK3LlXBMWBRNQuY-khjbV86wXOwB8OBf-ESN1HU/edit' },
+      sheetName: { __rl: true, mode: 'list', value: 1207695698, cachedResultName: 'Formularantworten 1', cachedResultUrl: 'https://docs.google.com/spreadsheets/d/16rxquK3LlXBMWBRNQuY-khjbV86wXOwB8OBf-ESN1HU/edit#gid=1207695698' },
       event: 'rowAdded',
       options: { valueRender: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'FORMATTED_STRING' }
     },
-    credentials: { googleSheetsTriggerOAuth2Api: { id: 'OKwqJAiGw70RQubX', name: 'Google Sheets Trigger account' } }
+    credentials: { googleSheetsTriggerOAuth2Api: { id: '1eFyqJ3nNHYgDX17', name: 'Google Sheets Trigger account 3' } }
   },
-  output: [{ 'Zeitstempel': '07.07.2026 10:15:00', 'Hausmeister': 'Max Mustermann', 'Objekt': 'Musterstr. 1 WE 3', 'Stunden': '1,5', 'Kilometer': '12', 'Materialkosten': '23,90', 'Beleg': 'https://drive.google.com/file/d/abc123', 'Beschreibung': 'Siphon getauscht' }]
+  output: [{ 'Zeitstempel': '17.07.2026 10:15:00', 'Datum des Einsatzes': '17.07.2026', 'Einsatzort: Objekt / Adresse (Stadt + Straße  + Etage) ': 'Musterstr. 1, Musterstadt', 'Startpunkt (Adresse oder Ort)': 'Haspe', 'Gefahrene Kilometer (Zahl)': '12', 'Startzeit (z. B. 9:30)': '09:00:00', 'Endzeit (z. B. 17:00)': '10:30:00', 'Kategorie der Aufgabenmeldung ': 'Reparatur (konkreter Defekt, Austausch, Behebung)', 'Was wurde gemacht / festgestellt? ': 'Siphon getauscht', 'Beleg beigefügt? *': 'Nein', 'Unterschrift (Mitarbeiter)': 'Max Mustermann' }]
 });
 
 const normalizeCode = `
 // ===== KONFIGURATION (Doku: bege-invoice-automation/config/abrechnung-konfiguration.md) =====
 const CONFIG = {
-  TEST_MODE: true,                          // true: Rechnung geht an TEST_CUSTOMER_ID statt an den Eigentuemer
+  TEST_MODE: true,                          // true: Rechnung geht an TEST_CUSTOMER_ID statt an den Eigentuemer, PDF in TEST_DRIVE_FOLDER_ID
   TEST_CUSTOMER_ID: '',                     // Easybill-Kunden-ID fuer Tests (leer => alle Eintraege landen auf HOLD)
-  GO_LIVE_TS: '2026-07-07T00:00:00+02:00',  // Zeilen mit Zeitstempel davor werden ignoriert (kein Alt-Backfill)
-  RATE_HOUR_CENTS: 4500,                    // PLATZHALTER 45,00 EUR/h  – vor Go-live anhand historischer Rechnungen verifizieren!
-  RATE_KM_CENTS: 50,                        // PLATZHALTER 0,50 EUR/km – vor Go-live verifizieren!
-  MATERIAL_MARKUP_PCT: 0,                   // PLATZHALTER 0 = Material 1:1 – vor Go-live verifizieren!
-  VAT_PERCENT: 19,                          // PLATZHALTER – vor Go-live verifizieren!
-  REQUIRE_RECEIPT_FOR_MATERIAL: true,       // Material > 0 ohne Beleg => HOLD statt Rechnung
+  TEST_DRIVE_FOLDER_ID: '',                 // Drive-Ordner fuer Test-PDFs (leer => completed_no_drive)
+  GO_LIVE_TS: '2026-07-17T00:00:00+02:00',  // Zeilen mit Zeitstempel davor werden ignoriert (kein Alt-Backfill)
+  RATE_HOUR_CENTS: 3000,                    // VERIFIZIERT 17.07.2026: 30,00 EUR/h netto (Easybill-Rechnungen 202611301/302/304/305/426, 7 Positionen konsistent)
+  RATE_KM_CENTS: 45,                        // VERIFIZIERT 17.07.2026: 0,45 EUR/km netto (6 Positionen konsistent)
+  MATERIAL_MARKUP_PCT: 0,                   // VERIFIZIERT: Material wird 1:1 als Sammelposition durchgereicht - greift nur, wenn das Formular eine Betragsspalte bekommt
+  VAT_PERCENT: 19,                          // VERIFIZIERT: 19% auf allen Positionen
+  REQUIRE_RECEIPT_FOR_MATERIAL: true,       // Materialbetrag > 0 ohne Beleg-Upload => HOLD
+  SELF_OWNER_IDS: ['698cae5ad4b3a26bd8501a83'], // Bege Apartments GmbH (Eigenbestand) => status skipped_internal, keine Rechnung, kein Mail-Alarm
   MAX_HOURS: 16, MAX_KM: 400, MAX_MATERIAL_CENTS: 200000, MAX_TOTAL_CENTS: 500000,
   TENANT_ID: '51573283-ea96-4b74-bf32-7e0ecde3d807',
   ALERT_EMAIL: 'info@hostautomation.de',
+  // Kandidaten werden erst exakt, dann als Prefix gegen die normalisierten Spaltenueberschriften gematcht
   COLUMN_MAP: {
-    submitted_at: ['zeitstempel','timestamp','datum'],
-    hausmeister: ['hausmeister','name','mitarbeiter'],
-    object_reference: ['objekt','wohnung','apartment','listing','objekt / wohnung','welche wohnung','welches objekt'],
-    stunden: ['stunden','arbeitszeit (stunden)','arbeitsstunden','zeitaufwand (stunden)','zeitaufwand','arbeitszeit'],
-    kilometer: ['kilometer','gefahrene kilometer','km','gefahrene km'],
-    material: ['materialkosten','materialkosten (eur)','material (eur)','material','materialkosten in eur'],
-    belege: ['beleg','belege','beleg-upload','belege (upload)','quittung','beleg hochladen'],
-    beschreibung: ['beschreibung','was wurde gemacht','taetigkeit','arbeitsbeschreibung','bemerkung','was wurde repariert']
+    submitted_at: ['zeitstempel','timestamp'],
+    einsatz_datum: ['datum des einsatzes','datum'],
+    object_reference: ['einsatzort','objekt','wohnung','apartment','listing'],
+    startzeit: ['startzeit'],
+    endzeit: ['endzeit'],
+    stunden_direkt: ['stunden','arbeitsstunden','arbeitszeit (stunden)','zeitaufwand'],
+    kilometer: ['gefahrene kilometer','kilometer','gefahrene km','km'],
+    material: ['materialkosten','material (eur)','materialkosten (eur)','material in eur'],
+    kategorie: ['kategorie'],
+    beschreibung: ['was wurde gemacht','beschreibung','taetigkeit','arbeitsbeschreibung'],
+    beleg_ja: ['beleg beigefuegt'],
+    click_collect: ['click & collect','click und collect'],
+    beleg_upload: ['beleg-upload','beleg upload','beleg hochladen'],
+    foto_upload: ['foto-upload','foto upload'],
+    hausmeister: ['unterschrift','hausmeister','mitarbeiter']
   }
 };
 // ===== ENDE KONFIGURATION =====
 
 function s(v){ return String(v === null || v === undefined ? '' : v).trim(); }
-function key(v){ return s(v).toLowerCase().replace(/\\u00e4/g,'ae').replace(/\\u00f6/g,'oe').replace(/\\u00fc/g,'ue').replace(/\\u20ac/g,'eur').replace(/\\s+/g,' '); }
+function key(v){ return s(v).toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss').replace(/€/g,'eur').replace(/\\s+/g,' ').trim(); }
+
+// MUSS identisch zur SQL-Funktion public.street_key() bleiben (Migration 20260717_1)!
+function streetKey(v){
+  let t = key(v);
+  t = t.split(',')[0];
+  t = t.replace(/\\(.*?\\)/g, ' ');
+  t = t.replace(/[\\/+]/g, ' ');
+  t = t.replace(/[^a-z0-9 .-]/g, ' ');
+  t = t.replace(/\\./g, ' ').replace(/-/g, ' ').replace(/\\s+/g, ' ').trim();
+  if (!t) return '';
+  const name = []; let num = '';
+  for (const tk of t.split(' ')){
+    if (/^\\d/.test(tk)){
+      if (name.length){ const m = tk.match(/^(\\d+)([a-z]?)/); num = m[1] + (m[2] || ''); break; }
+    } else {
+      const w = tk.replace(/(strasse|str|atr|srt)$/, '');
+      if (w) name.push(w);
+    }
+  }
+  if (!name.length || !num) return '';
+  return name.join(' ') + ' ' + num;
+}
+
 function parseGermanNumber(v){
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'number') return isFinite(v) ? v : NaN;
-  let t = String(v).replace(/eur|km|std|h/gi,'').replace(/[\\u20ac\\s]/g,'').trim();
+  let t = String(v).replace(/eur|km|std|h/gi,'').replace(/[€\\s]/g,'').trim();
   if (!t) return 0;
   if (t.includes(',')) t = t.replace(/\\./g,'').replace(',','.');
   const n = Number(t);
   return isFinite(n) ? n : NaN;
 }
+
+function parseClock(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'number' && isFinite(v)){ const h = (v % 1) * 24; return (v >= 0 && h >= 0 && h <= 24) ? h : null; }
+  const m = String(v).trim().match(/^(\\d{1,2})[:.](\\d{2})(?::(\\d{2}))?$/);
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]), se = Number(m[3] || '0');
+  if (h > 24 || mi > 59 || se > 59) return null;
+  return h + mi / 60 + se / 3600;
+}
+
+function parseKm(v){
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : NaN;
+  let t = String(v).toLowerCase().replace(/km/g, ' ').trim();
+  if (!t) return 0;
+  if (!/\\d/.test(t)) return /kein/.test(t) ? 0 : NaN;
+  t = t.replace(/,/g, '.');
+  const nums = t.match(/\\d+(?:\\.\\d+)?/g);
+  if (!nums) return NaN;
+  return nums.reduce((a, b) => a + Number(b), 0);
+}
+
 function parseTimestamp(v){
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number'){ const d = new Date(Math.round((v - 25569) * 86400000)); return isNaN(d.getTime()) ? null : d; }
@@ -73,7 +129,15 @@ const out = [];
 for (const it of $input.all()){
   const row = it.json;
   const keyed = {}; for (const k of Object.keys(row)) keyed[key(k)] = row[k];
-  const pick = (f) => { for (const cand of CONFIG.COLUMN_MAP[f]){ if (cand in keyed) return keyed[cand]; } return undefined; };
+  const cols = Object.keys(keyed);
+  const pick = (f) => {
+    for (const cand of CONFIG.COLUMN_MAP[f]){
+      if (cand in keyed) return keyed[cand];
+      const hit = cols.find(c => c.indexOf(cand) === 0);
+      if (hit !== undefined) return keyed[hit];
+    }
+    return undefined;
+  };
   const missing = ['submitted_at','object_reference'].filter(f => pick(f) === undefined);
   if (missing.length){
     throw new Error('HW-01 Konfigurationsfehler: Formular-Spalten nicht zuordenbar fuer [' + missing.join(', ') +
@@ -82,25 +146,54 @@ for (const it of $input.all()){
   const submittedRaw = s(pick('submitted_at'));
   const submittedAt = parseTimestamp(pick('submitted_at'));
   if (submittedAt && submittedAt < new Date(CONFIG.GO_LIVE_TS)) continue;
+
   const objectRef = s(pick('object_reference'));
-  const stunden = parseGermanNumber(pick('stunden'));
-  const kilometer = parseGermanNumber(pick('kilometer'));
-  const materialEur = parseGermanNumber(pick('material'));
-  const belegeRaw = s(pick('belege'));
-  const belege = belegeRaw ? belegeRaw.split(/[,\\n\\s]+/).filter(u => u.indexOf('http') === 0) : [];
+  const einsatzAt = parseTimestamp(pick('einsatz_datum'));
+  const startRaw = s(pick('startzeit'));
+  const endRaw = s(pick('endzeit'));
+  const startH = parseClock(pick('startzeit'));
+  const endH = parseClock(pick('endzeit'));
+
+  let stunden = NaN; let stundenQuelle = 'fehlt';
+  const direkt = pick('stunden_direkt');
+  if (direkt !== undefined && s(direkt) !== ''){ stunden = parseGermanNumber(direkt); stundenQuelle = 'spalte'; }
+  else if (startH !== null && endH !== null){ stunden = Math.round((endH - startH) * 100) / 100; stundenQuelle = 'start_ende'; }
+
+  const kmRaw = s(pick('kilometer'));
+  const kilometer = parseKm(pick('kilometer'));
+
+  const materialVal = pick('material');
+  const materialEur = (materialVal === undefined || s(materialVal) === '') ? null : parseGermanNumber(materialVal);
+
+  const belegJa = key(pick('beleg_ja')).indexOf('ja') === 0;
+  const clickCollect = key(pick('click_collect')).indexOf('ja') === 0;
+  const urls = (v) => { const r = s(v); return r ? r.split(/[,\\n\\s]+/).filter(u => u.indexOf('http') === 0) : []; };
+  const belege = urls(pick('beleg_upload'));
+  const fotos = urls(pick('foto_upload'));
+
   out.push({ json: {
-    form_submission_id: [submittedRaw, key(objectRef), String(stunden), String(kilometer), String(materialEur)].join('|'),
+    form_submission_id: [submittedRaw, key(objectRef), startRaw, endRaw, kmRaw].join('|'),
     submitted_at_iso: submittedAt ? submittedAt.toISOString() : null,
     submitted_at_raw: submittedRaw,
+    einsatz_datum_iso: einsatzAt ? einsatzAt.toISOString() : null,
     hausmeister: s(pick('hausmeister')),
     object_reference: objectRef,
     _object_key: key(objectRef),
+    _street_key: streetKey(objectRef),
+    kategorie: s(pick('kategorie')),
     beschreibung: s(pick('beschreibung')),
-    stunden: stunden,
-    kilometer: kilometer,
-    material_eur: materialEur,
-    material_cost_cents: isNaN(materialEur) ? null : Math.round(materialEur * 100),
+    stunden: isNaN(stunden) ? null : stunden,
+    stunden_quelle: stundenQuelle,
+    start_raw: startRaw,
+    end_raw: endRaw,
+    kilometer: isNaN(kilometer) ? null : kilometer,
+    kilometer_raw: kmRaw,
+    material_raw: materialVal === undefined ? '' : s(materialVal),
+    material_eur: (materialEur === null || isNaN(materialEur)) ? null : materialEur,
+    material_cost_cents: (materialEur === null || isNaN(materialEur)) ? null : Math.round(materialEur * 100),
+    material_flag: belegJa || clickCollect || belege.length > 0,
     belege_urls: belege,
+    foto_urls: fotos,
     raw_row: row,
     config: CONFIG
   }});
@@ -198,18 +291,18 @@ const lookupMap = node({
     parameters: {
       resource: 'row',
       operation: 'getAll',
-      tableId: 'object_owner_map',
+      tableId: 'object_street_owner',
       returnAll: false,
       limit: 1,
       filterType: 'manual',
       matchType: 'allFilters',
       filters: { conditions: [
-        { keyName: 'object_key', condition: 'eq', keyValue: expr("{{ $('Normalisieren + Fingerprint').item.json._object_key }}") }
+        { keyName: 'street_key', condition: 'eq', keyValue: expr("{{ $('Normalisieren + Fingerprint').item.json._street_key }}") }
       ] }
     },
     credentials: { supabaseApi: { id: 'VoEVcY26VNebXyjK', name: 'Jonas Rechnungsworkflow' } }
   },
-  output: [{ object_key: 'musterstr. 1 we 3', owner_id: '698cae5ad4b3a26bd8501a83', listing_name: 'Musterstr. 1 WE 3' }]
+  output: [{ street_key: 'muster 1', owner_id: '67d6eefbbb8161d020c3d8ef', owner_count: 1, sample_address: 'Musterstr. 1, Musterstadt' }]
 });
 
 const lookupOwner = node({
@@ -244,59 +337,88 @@ const calcCode = `
 const norm = $('Normalisieren + Fingerprint').item.json;
 const CONFIG = norm.config;
 const claim = $('Claim: Protokoll-Insert').item.json;
+const streetRow = $('Lookup: Objekt zu Owner').item.json || {};
 const ownerRow = $('Lookup: Eigentuemer-Daten').item.json || {};
 const issues = [];
-const stunden = Number(norm.stunden);
-const km = Number(norm.kilometer);
+// NaN wird bei der n8n-Serialisierung zu null - hier zurueck nach NaN, damit die Checks greifen
+const stunden = (norm.stunden === null || norm.stunden === undefined) ? NaN : Number(norm.stunden);
+const km = (norm.kilometer === null || norm.kilometer === undefined) ? NaN : Number(norm.kilometer);
 const materialCents = norm.material_cost_cents;
+
+// Eigenbestand: eindeutig gemappt auf einen SELF_OWNER (Bege selbst) => keine Rechnung, kein Alarm
+const skipInternal = !!(streetRow.owner_id && Number(streetRow.owner_count) === 1 && CONFIG.SELF_OWNER_IDS.indexOf(streetRow.owner_id) !== -1);
 
 if (!norm.submitted_at_iso) issues.push('Zeitstempel unlesbar: "' + norm.submitted_at_raw + '"');
 if (!norm.object_reference) issues.push('Objekt-Referenz fehlt');
-if (!ownerRow.owner_id) issues.push('Kein Eigentuemer-Mapping fuer Objekt "' + norm.object_reference + '" (Tabelle object_owner_map pflegen)');
-else if (!ownerRow.easybill_customer_id) issues.push('easybill_customer_id fehlt fuer Eigentuemer ' + (ownerRow.owner_name || ownerRow.owner_id));
-if (isNaN(stunden) || stunden < 0 || stunden > CONFIG.MAX_HOURS) issues.push('Stunden unplausibel: ' + norm.stunden);
-if (isNaN(km) || km < 0 || km > CONFIG.MAX_KM) issues.push('Kilometer unplausibel: ' + norm.kilometer);
-if (materialCents === null || isNaN(materialCents) || materialCents < 0 || materialCents > CONFIG.MAX_MATERIAL_CENTS) issues.push('Materialkosten unplausibel: ' + norm.material_eur);
+if (!norm._street_key) issues.push('Aus Einsatzort "' + norm.object_reference + '" laesst sich kein Strassen-Schluessel (Strasse + Hausnummer) bilden');
+else if (!streetRow.owner_id) issues.push('Kein Eigentuemer-Mapping fuer "' + norm.object_reference + '" (street_key "' + norm._street_key + '" in object_street_map pflegen)');
+else if (Number(streetRow.owner_count) > 1) issues.push('Objekt-Zuordnung mehrdeutig: street_key "' + norm._street_key + '" gehoert zu ' + streetRow.owner_count + ' Eigentuemern (object_street_map bereinigen oder praezisere Objektangabe)');
+else if (!skipInternal && !ownerRow.easybill_customer_id) issues.push('easybill_customer_id fehlt fuer Eigentuemer ' + (ownerRow.owner_name || streetRow.owner_id));
 
-const materialAdjCents = (materialCents && !isNaN(materialCents) && materialCents > 0) ? Math.round(materialCents * (1 + CONFIG.MATERIAL_MARKUP_PCT / 100)) : 0;
+if (isNaN(stunden)) issues.push('Arbeitszeit nicht ermittelbar (Startzeit "' + norm.start_raw + '", Endzeit "' + norm.end_raw + '")');
+else if (stunden < 0) issues.push('Endzeit liegt vor Startzeit (' + norm.start_raw + ' - ' + norm.end_raw + ')');
+else if (stunden > CONFIG.MAX_HOURS) issues.push('Stunden unplausibel: ' + stunden);
+if (isNaN(km) || km < 0 || km > CONFIG.MAX_KM) issues.push('Kilometer unplausibel: "' + norm.kilometer_raw + '"');
+
+let materialAdjCents = 0;
+if (materialCents !== null && materialCents !== undefined){
+  if (materialCents < 0 || materialCents > CONFIG.MAX_MATERIAL_CENTS) issues.push('Materialkosten unplausibel: ' + norm.material_eur);
+  else if (materialCents > 0){
+    materialAdjCents = Math.round(materialCents * (1 + CONFIG.MATERIAL_MARKUP_PCT / 100));
+    if (CONFIG.REQUIRE_RECEIPT_FOR_MATERIAL && (!norm.belege_urls || norm.belege_urls.length === 0)) issues.push('Materialkosten ohne Beleg-Upload');
+  }
+} else if (norm.material_raw){
+  issues.push('Materialkosten unlesbar: "' + norm.material_raw + '"');
+} else if (norm.material_flag && !skipInternal){
+  issues.push('Beleg/Materialkauf angegeben, aber das Formular hat keine Materialkosten-Betragsspalte - Betrag nicht automatisch bezifferbar. Material manuell abrechnen (Beleg: ' + ((norm.belege_urls || []).concat(norm.foto_urls || [])[0] || 'kein Upload') + ')');
+}
+
 const hoursCents = (!isNaN(stunden) && stunden > 0) ? Math.round(stunden * CONFIG.RATE_HOUR_CENTS) : 0;
 const kmCents = (!isNaN(km) && km > 0) ? Math.round(km * CONFIG.RATE_KM_CENTS) : 0;
 const totalCents = hoursCents + kmCents + materialAdjCents;
-if (totalCents <= 0) issues.push('Keine abrechenbare Position (Stunden, km und Material sind 0 oder ungueltig)');
-if (totalCents > CONFIG.MAX_TOTAL_CENTS) issues.push('Gesamtbetrag ueber Limit: ' + (totalCents / 100).toFixed(2) + ' EUR');
-if (CONFIG.REQUIRE_RECEIPT_FOR_MATERIAL && materialAdjCents > 0 && (!norm.belege_urls || norm.belege_urls.length === 0)) issues.push('Materialkosten ohne Beleg-Upload');
+if (!skipInternal){
+  if (totalCents <= 0) issues.push('Keine abrechenbare Position (Stunden und km sind 0 oder ungueltig)');
+  if (totalCents > CONFIG.MAX_TOTAL_CENTS) issues.push('Gesamtbetrag ueber Limit: ' + (totalCents / 100).toFixed(2) + ' EUR');
+}
 
 let customerId = ownerRow.easybill_customer_id;
 if (CONFIG.TEST_MODE) {
   customerId = CONFIG.TEST_CUSTOMER_ID;
-  if (!customerId) issues.push('TEST_MODE aktiv, aber TEST_CUSTOMER_ID leer - Konfiguration im Node "Normalisieren + Fingerprint" setzen');
+  if (!customerId && !skipInternal) issues.push('TEST_MODE aktiv, aber TEST_CUSTOMER_ID leer - Konfiguration im Node "Normalisieren + Fingerprint" setzen');
 }
 if (customerId && isNaN(Number(customerId))) issues.push('easybill_customer_id ist nicht numerisch: ' + customerId);
 
-const datum = norm.submitted_at_iso ? norm.submitted_at_iso.slice(0, 10).split('-').reverse().join('.') : norm.submitted_at_raw;
+let gdriveFolder = ownerRow.gdrive_folder_id || '';
+if (CONFIG.TEST_MODE) gdriveFolder = CONFIG.TEST_DRIVE_FOLDER_ID || '';
+
+const iso = norm.einsatz_datum_iso || norm.submitted_at_iso;
+const datum = iso ? iso.slice(0, 10).split('-').reverse().join('.') : norm.submitted_at_raw;
 const objekt = norm.object_reference;
+const leistung = [norm.kategorie, norm.beschreibung].filter(Boolean).join(' - ');
 const testPrefix = CONFIG.TEST_MODE ? '[TESTLAUF] ' : '';
 const ebItems = [];
-if (hoursCents > 0) ebItems.push({ type: 'POSITION', description: 'Hausmeister-/Handwerkerleistung - ' + objekt + (norm.beschreibung ? ' (' + norm.beschreibung + ')' : ''), quantity: stunden, unit: 'Std.', single_price_net: CONFIG.RATE_HOUR_CENTS, vat_percent: CONFIG.VAT_PERCENT });
+if (hoursCents > 0) ebItems.push({ type: 'POSITION', description: 'Hausmeister-/Handwerkerleistung am ' + datum + ' - ' + objekt + (leistung ? ' (' + leistung + ')' : ''), quantity: stunden, unit: 'Std.', single_price_net: CONFIG.RATE_HOUR_CENTS, vat_percent: CONFIG.VAT_PERCENT });
 if (kmCents > 0) ebItems.push({ type: 'POSITION', description: 'Anfahrt (Kilometerpauschale) - ' + objekt, quantity: km, unit: 'km', single_price_net: CONFIG.RATE_KM_CENTS, vat_percent: CONFIG.VAT_PERCENT });
 if (materialAdjCents > 0) ebItems.push({ type: 'POSITION', description: 'Materialkosten lt. Beleg - ' + objekt, quantity: 1, unit: 'pauschal', single_price_net: materialAdjCents, vat_percent: CONFIG.VAT_PERCENT });
 
 return { json: {
   row_id: claim.id,
   form_submission_id: norm.form_submission_id,
-  plausible: issues.length === 0,
-  hold_reason: issues.join('; '),
-  owner_id: ownerRow.owner_id || null,
+  plausible: !skipInternal && issues.length === 0,
+  skip_internal: skipInternal,
+  hold_reason: skipInternal ? ('EIGENBESTAND ' + (ownerRow.owner_name || 'Bege Apartments GmbH') + ' - keine Weiterberechnung (CONFIG.SELF_OWNER_IDS)') : issues.join('; '),
+  owner_id: streetRow.owner_id || null,
   owner_name: ownerRow.owner_name || '',
+  street_key: norm._street_key,
   easybill_customer_id: customerId || '',
-  gdrive_folder_id: ownerRow.gdrive_folder_id || '',
+  gdrive_folder_id: gdriveFolder,
   computed_amount_cents: totalCents,
   vat_percent: CONFIG.VAT_PERCENT,
   object_reference: objekt,
   datum: datum,
   hausmeister: norm.hausmeister,
-  stunden: stunden,
-  kilometer: km,
+  stunden: isNaN(stunden) ? null : stunden,
+  kilometer: isNaN(km) ? null : km,
   material_eur: norm.material_eur,
   belege_urls: norm.belege_urls,
   test_mode: CONFIG.TEST_MODE,
@@ -699,7 +821,7 @@ const logHold = node({
       filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr("{{ $('Berechnung + Plausibilitaet').item.json.row_id }}") }] },
       dataToSend: 'defineBelow',
       fieldsUi: { fieldValues: [
-        { fieldId: 'status', fieldValue: 'hold' },
+        { fieldId: 'status', fieldValue: expr("{{ $('Berechnung + Plausibilitaet').item.json.skip_internal ? 'skipped_internal' : 'hold' }}") },
         { fieldId: 'hold_reason', fieldValue: expr("{{ $('Berechnung + Plausibilitaet').item.json.hold_reason }}") },
         { fieldId: 'is_processing', fieldValue: expr('{{ false }}') },
         { fieldId: 'updated_at', fieldValue: expr('{{ $now.toISO() }}') }
@@ -729,6 +851,24 @@ const mailHold = node({
     credentials: { gmailOAuth2: { id: 'viBiXuVDXJc9eiVs', name: 'Hostautomation' } }
   },
   output: [{ id: 'mail2' }]
+});
+
+
+const internIf = ifElse({
+  version: 2.3,
+  config: {
+    name: 'Intern (ohne Mail-Alarm)?',
+    position: [1470, 460],
+    parameters: {
+      conditions: {
+        options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 },
+        combinator: 'and',
+        conditions: [
+          { leftValue: expr("{{ $('Berechnung + Plausibilitaet').item.json.skip_internal }}"), operator: { type: 'boolean', operation: 'true', singleValue: true } }
+        ]
+      }
+    }
+  }
 });
 
 const logError = node({
@@ -836,7 +976,7 @@ export default workflow('bege-hw01-instandhaltung', 'Bege | HW-01 Instandhaltung
                       )
                     )
                   )
-                  .onFalse(logHold.to(mailHold.to(pacing)))
+                  .onFalse(logHold.to(internIf.onTrue(pacing).onFalse(mailHold.to(pacing))))
                 )
               )
             )

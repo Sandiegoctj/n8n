@@ -47,7 +47,10 @@ const readSheet = node({
 });
 
 const extractWhiteCode = `
-// Weisse (= noch nicht abgerechnete) Zeilen extrahieren. Gruen/farbig = bereits abgerechnet => ueberspringen.
+// Weisse (= noch nicht abgerechnete) Zeilen extrahieren. Farbig (gruen) = bereits abgerechnet => ueberspringen.
+// WICHTIG: Die Sheets-API laesst Farbanteile mit Wert 0 weg ({green:1} = sattes Gruen!) => fehlender Kanal = 0, NICHT 1.
+// Eine Zeile gilt nur dann als offen, wenn ALLE Formular-Zellen weiss/ungefaerbt sind (Teilfaerbung => sicherheitshalber ueberspringen).
+// Verifiziert 21.07.2026 gegen das echte Sheet: 252 Zeilen => 57 weiss/offen, 195 farbig (Diagnose-Lauf 183602).
 const sheets = ($json.sheets || []);
 const target = sheets.find(s => s.properties && s.properties.sheetId === 1207695698) || sheets[0] || {};
 const rows = ((target.data || [])[0] || {}).rowData || [];
@@ -55,10 +58,8 @@ if (!rows.length) return [];
 
 function cellText(c){ return (c && c.formattedValue !== undefined && c.formattedValue !== null) ? String(c.formattedValue) : ''; }
 function isWhite(bg){
-  if (!bg) return true;
-  const r = bg.red === undefined ? 1 : bg.red;
-  const g = bg.green === undefined ? 1 : bg.green;
-  const b = bg.blue === undefined ? 1 : bg.blue;
+  if (!bg) return true; // kein Format = Default weiss (auch Zebra-Hellgrau des Bandings zaehlt als weiss, da alle Kanaele > 0.92)
+  const r = bg.red || 0, g = bg.green || 0, b = bg.blue || 0;
   return r > 0.92 && g > 0.92 && b > 0.92;
 }
 
@@ -67,11 +68,14 @@ const headers = headerCells.map(cellText);
 const out = [];
 for (let i = 1; i < rows.length; i++){
   const cells = rows[i].values || [];
-  const first = cells[0] || {};
-  const ts = cellText(first);
+  const ts = cellText(cells[0]);
   if (!ts) continue;
-  const bg = (first.effectiveFormat || {}).backgroundColor;
-  if (!isWhite(bg)) continue;
+  let colored = false;
+  for (let c = 0; c < headers.length; c++){
+    const bg = ((cells[c] || {}).effectiveFormat || {}).backgroundColor;
+    if (!isWhite(bg)){ colored = true; break; }
+  }
+  if (colored) continue;
   const obj = { _sheet_row: i + 1 };
   for (let c = 0; c < headers.length; c++){
     if (headers[c]) obj[headers[c]] = cellText(cells[c]);

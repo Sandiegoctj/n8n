@@ -48,7 +48,7 @@ Stand **21.07.2026**. Umsetzung des Konzepts v0.1 (07.07.2026), weiterentwickelt
 
 ## ⚠️ Betriebsregeln
 
-- **Grün ist das Abrechnungs-Signal**: Zeilen niemals manuell grün färben, solange sie nicht abgerechnet sind — und abgerechnete niemals wieder weiß machen (sonst doppelte Verarbeitung, die nur noch der Duplikat-Schutz abfängt).
+- **Grün ist das Abrechnungs-Signal**: Zeilen niemals manuell grün färben, solange sie nicht abgerechnet sind — und abgerechnete niemals wieder weiß machen (sonst doppelte Verarbeitung, die nur noch der Duplikat-Schutz abfängt). Beim manuellen Färben immer die **ganze Zeile** färben: Eine nur teilweise gefärbte Zeile wird sicherheitshalber übersprungen (weder abgerechnet noch grün gefärbt), bis sie eindeutig ist.
 - Spaltenüberschriften im Formular/Sheet nicht umbenennen (lauter Stopp mit Fehler-Mail); neue Spalten sind unkritisch. Die KI-Spalten (`KI …`) gehören dem Workflow.
 - Eigenbestand-Zeilen (Bege selbst) werden **nicht** gefärbt und nicht berechnet (`skipped_internal`) — sie bleiben weiß und werden bei Folgeläufen still übersprungen; bei Bedarf manuell andersfarbig markieren.
 - Ein manueller Start ist jederzeit gefahrlos: Er verarbeitet nur weiße Zeilen und stoppt Duplikate still (anders als v1 gibt es keinen „alle Zeilen"-Massenmodus mehr).

@@ -460,7 +460,10 @@ if (parsed && parsed.lesbar === true && typeof parsed.gesamt_brutto_eur === 'num
   hinweis = parsed ? String(parsed.hinweis || 'Beleg laut KI nicht sicher lesbar').slice(0, 300) : ('Keine auswertbare KI-Antwort: ' + String(raw).slice(0, 200));
 }
 
+let fsid = ''; try { fsid = $('Normalisieren + Fingerprint').first().json.form_submission_id; } catch (e) {}
+
 return { json: {
+  form_submission_id: fsid,
   ki_ok: ok,
   ki_material_netto_cents: nettoCents,
   ki_netto_eur: netto,
@@ -489,7 +492,7 @@ const kiRow = node({
   config: {
     name: 'KI-Zeile bauen',
     position: [1400, 180],
-    parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: "const ki = $('Beleg-KI: Ergebnis').item.json;\nconst norm = $('Normalisieren + Fingerprint').item.json;\nreturn { json: {\n  'Zeitstempel': norm.submitted_at_raw,\n  'KI Material netto (EUR)': ki.ki_ok ? ki.ki_netto_eur : '',\n  'KI Beleg brutto (EUR)': ki.ki_ok ? ki.ki_brutto_eur : '',\n  'KI Haendler': ki.ki_haendler || '',\n  'KI Belegdatum': ki.ki_belegdatum || '',\n  'KI Hinweis': ki.ki_ok ? (ki.ki_hinweis || 'OK') : ('NICHT LESBAR: ' + ki.ki_hinweis)\n} };" }
+    parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: "const ki = $('Beleg-KI: Ergebnis').first().json;\nconst norm = $('Normalisieren + Fingerprint').first().json;\nreturn { json: {\n  'Zeitstempel': norm.submitted_at_raw,\n  'KI Material netto (EUR)': ki.ki_ok ? ki.ki_netto_eur : '',\n  'KI Beleg brutto (EUR)': ki.ki_ok ? ki.ki_brutto_eur : '',\n  'KI Haendler': ki.ki_haendler || '',\n  'KI Belegdatum': ki.ki_belegdatum || '',\n  'KI Hinweis': ki.ki_ok ? (ki.ki_hinweis || 'OK') : ('NICHT LESBAR: ' + ki.ki_hinweis)\n} };" }
   },
   output: [{ 'Zeitstempel': '08.03.2026 10:24:48', 'KI Material netto (EUR)': 20.08, 'KI Beleg brutto (EUR)': 23.9, 'KI Haendler': 'Bauhaus', 'KI Belegdatum': '04.03.2026', 'KI Hinweis': 'OK' }]
 });
@@ -573,11 +576,13 @@ const lookupOwner = node({
 });
 
 const calcCode = `
-const norm = $('Normalisieren + Fingerprint').item.json;
+// .first() statt .item: bei Batch-1-Loop immer das aktuelle Item, umgeht den n8n-getPairedItem-Crash
+// nach der Beleg-Kette (TypeError "reading 'error'", siehe Executions 183804/183805 vom 21.07.2026).
+const norm = $('Normalisieren + Fingerprint').first().json;
 const CONFIG = norm.config;
-const claim = $('Claim: Protokoll-Insert').item.json;
-const streetRow = $('Lookup: Objekt zu Owner').item.json || {};
-const ownerRow = $('Lookup: Eigentuemer-Daten').item.json || {};
+const claim = $('Claim: Protokoll-Insert').first().json;
+const streetRow = $('Lookup: Objekt zu Owner').first().json || {};
+const ownerRow = $json || {};
 const issues = [];
 const stunden = (norm.stunden === null || norm.stunden === undefined) ? NaN : Number(norm.stunden);
 const km = (norm.kilometer === null || norm.kilometer === undefined) ? NaN : Number(norm.kilometer);
@@ -611,7 +616,7 @@ if (materialCents !== null && materialCents !== undefined){
 } else if (norm.material_raw){
   issues.push('Materialkosten unlesbar: "' + norm.material_raw + '"');
 } else if (norm.material_flag && !skipInternal){
-  let ki = null; try { ki = $('Beleg-KI: Ergebnis').item.json; } catch (e) {}
+  let ki = null; try { const k = $('Beleg-KI: Ergebnis').first().json; if (k && k.form_submission_id === norm.form_submission_id) ki = k; } catch (e) {}
   if (ki && ki.ki_ok && ki.ki_material_netto_cents > 0 && ki.ki_material_netto_cents <= CONFIG.MAX_MATERIAL_CENTS){
     materialAdjCents = Math.round(ki.ki_material_netto_cents * (1 + CONFIG.MATERIAL_MARKUP_PCT / 100));
     materialQuelle = 'beleg_ki';

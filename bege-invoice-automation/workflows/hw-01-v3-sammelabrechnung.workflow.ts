@@ -867,12 +867,16 @@ const mailErrorRow = node({
 });
 
 const groupCode = `
-// Plausible Zeilen nach Eigentuemer (easybill_customer_id) gruppieren -> eine Sammelrechnung pro Eigentuemer
+// Plausible Zeilen nach Eigentuemer gruppieren -> EINE Sammelrechnung pro Eigentuemer.
+// Gruppiert wird nach owner_id (stabil auch im Testbetrieb); die Rechnung geht an easybill_customer_id.
+// ===== TESTBETRIEB =====
+const TEST_CUSTOMER_ID = ''; // Testlauf: Easybill-Kunden-ID des Testkunden eintragen (z. B. 2648273633 = 'ZZZ TEST', Nr. 10077) => alle Entwuerfe gehen dorthin, Titel [TESTLAUF <Owner>]. FUER LIVEBETRIEB LEER LASSEN!
+// =======================
 const items = $input.all().map(i => i.json).filter(j => j && j.plausible === true && Array.isArray(j.positions) && j.positions.length);
 if (!items.length) return [];
 const groups = {};
 for (const it of items){
-  const k = String(it.easybill_customer_id);
+  const k = String(it.owner_id || it.easybill_customer_id);
   if (!groups[k]) groups[k] = [];
   groups[k].push(it);
 }
@@ -885,27 +889,30 @@ for (const k of Object.keys(groups)){
   const total = rows.reduce((a, r) => a + (r.computed_amount_cents || 0), 0);
   const daten = rows.map(r => r.datum).filter(Boolean);
   const zeitraum = daten.length ? (daten[0] + ' - ' + daten[daten.length - 1]) : heute;
+  const testMode = !!TEST_CUSTOMER_ID;
+  const customerId = testMode ? Number(TEST_CUSTOMER_ID) : (Number(rows[0].easybill_customer_id) || 0);
+  const prefix = testMode ? ('[TESTLAUF ' + (rows[0].owner_name || k) + '] ') : '';
   out.push({ json: {
-    easybill_customer_id: k,
+    easybill_customer_id: String(customerId),
     owner_id: rows[0].owner_id,
     owner_name: rows[0].owner_name,
-    gdrive_folder_id: rows[0].gdrive_folder_id || '',
+    gdrive_folder_id: testMode ? '' : (rows[0].gdrive_folder_id || ''),
     row_ids: rows.map(r => r.row_id),
     sheet_rows: rows.map(r => r.sheet_row).filter(n => Number.isInteger(n)),
     einsaetze: rows.length,
     summe_cents: total,
-    test_mode: rows[0].test_mode,
+    test_mode: testMode,
     easybill_payload: {
       type: 'INVOICE',
-      customer_id: Number(k) || 0,
+      customer_id: customerId,
       currency: 'EUR',
-      title: (rows[0].test_mode ? '[TESTLAUF] ' : '') + 'Rechnung Instandhaltung',
-      text_prefix: (rows[0].test_mode ? '[TESTLAUF] ' : '') + 'Instandhaltungsleistungen Bege Apartments, Zeitraum ' + zeitraum + '. Einzelne Einsaetze siehe Positionen.',
+      title: prefix + 'Rechnung Instandhaltung',
+      text_prefix: prefix + 'Instandhaltungsleistungen Bege Apartments, Zeitraum ' + zeitraum + '. Einzelne Einsaetze siehe Positionen.',
       text: 'Vielen Dank fuer Ihr Vertrauen.',
       items: positions
     },
     easybill_send_payload: {
-      subject: (rows[0].test_mode ? '[TESTLAUF] ' : '') + 'Ihre Rechnung - Instandhaltung ' + zeitraum + ' (Bege Apartments)',
+      subject: prefix + 'Ihre Rechnung - Instandhaltung ' + zeitraum + ' (Bege Apartments)',
       message: 'Sehr geehrte Damen und Herren,' + String.fromCharCode(10) + String.fromCharCode(10) +
         'anbei erhalten Sie die Sammelrechnung fuer Instandhaltungsarbeiten im Zeitraum ' + zeitraum + '.' +
         String.fromCharCode(10) + String.fromCharCode(10) + 'Mit freundlichen Gruessen' + String.fromCharCode(10) + 'Bege Apartments GmbH'
